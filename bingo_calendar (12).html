@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>헬스장 빙고 플래너</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif; background: #12121f; color: #fff; min-height: 100vh; padding: 20px; }
+  h1 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .subtitle { font-size: 12px; color: #666; margin-bottom: 16px; }
+  .app-layout { display: flex; gap: 16px; align-items: flex-start; width: 100%; }
+
+  .calendar-panel { flex: 0 0 560px; background: #1a1a2e; border-radius: 12px; padding: 16px; }
+  .cal-title { font-size: 15px; font-weight: 700; color: #ffd700; margin-bottom: 12px; }
+  .cal-grid { display: grid; grid-template-columns: 36px repeat(7, 1fr); gap: 3px; }
+  .cal-day-header { text-align: center; font-size: 10px; color: #555; padding: 4px 0; font-weight: 700; }
+  .cal-week-label { display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; border-radius: 6px; padding: 2px; }
+  .cal-day { background: #12121f; border-radius: 8px; min-height: 80px; padding: 4px; border: 1px solid #1e1e32; position: relative; }
+  .cal-day.weekend { background: #0e0e1a; }
+  .cal-day.inactive { opacity: 0.2; }
+  .cal-day.active-day { border-color: #3a3a6a; }
+  .cal-day.dragover { border-color: #ffd700 !important; background: #2a2a1a !important; }
+  .cal-day.completed { border-color: #44cc88 !important; background: #0a1a0a !important; }
+  .day-num { font-size: 10px; color: #555; margin-bottom: 2px; }
+  .day-num.has-m { color: #aaa; }
+  .mission-slot { display: flex; flex-direction: column; gap: 2px; min-height: 50px; }
+
+  .mission-btn { font-size: 9px; padding: 2px 4px; border-radius: 3px; cursor: grab; border: none; font-family: inherit; font-weight: 600; text-align: left; line-height: 1.3; user-select: none; }
+  .mission-btn:active { cursor: grabbing; }
+  .mission-btn.dragging { opacity: 0.3; }
+  .week-1 { background: #3a1a1a; color: #ff9999; border-left: 3px solid #ff4444; }
+  .week-2 { background: #3a2a1a; color: #ffcc88; border-left: 3px solid #ff8844; }
+  .week-3 { background: #3a3a1a; color: #ffee88; border-left: 3px solid #ffcc00; }
+  .week-4 { background: #1a3a1a; color: #88ff99; border-left: 3px solid #44cc55; }
+  .week-5 { background: #1a2a3a; color: #88bbff; border-left: 3px solid #4488ff; }
+  .week-any { background: #2a2a3e; color: #cccccc; border-left: 3px solid #666699; }
+  .week-purple { background: #2a1a3a; color: #cc88ff; border-left: 3px solid #8844cc; }
+
+  .bingo-panel { flex: 1; background: #1a1a2e; border-radius: 12px; padding: 16px; }
+  .bingo-title { font-size: 14px; font-weight: 700; color: #ffd700; margin-bottom: 10px; }
+  .legend { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #aaa; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+  .bingo-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+  .bcell { background: #2a2a3e; border-radius: 8px; padding: 8px 6px; text-align: center; min-height: 78px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 2px solid #3a3a5a; position: relative; gap: 2px; transition: all 0.2s; }
+  .bcell .btitle { font-size: 9px; font-weight: 700; color: #888; line-height: 1.4; }
+  .bcell .bsub { font-size: 8px; color: #666; }
+  .bcell .bdates { font-size: 8px; color: #aaa; line-height: 1.5; margin-top: 2px; }
+  .target { background: #2a2a1a; border-color: #ffd700; }
+  .target .btitle { color: #ffe566; }
+  .target .bsub { color: #ccaa44; }
+  .target .bdates { color: #ffcc44; }
+  .fat-4 { background: #1a3a2a; border-color: #44cc88; }
+  .fat-4 .btitle { color: #88ffcc; }
+  .fat-3 { background: #1e3a28; border-color: #55bb77; }
+  .fat-3 .btitle { color: #99ddbb; }
+  .fat-1 { background: #1a2e24; border-color: #66bb88; }
+  .fat-1 .btitle { color: #aaddbb; }
+  .fat-5 { background: #3a2a1a; border-color: #ff8844; }
+  .fat-5 .btitle { color: #ffbb88; }
+  .fat-7 { background: #2a2a3e; border-color: #3a3a5a; }
+  .fat-7 .btitle { color: #888; }
+  .bbadge { position: absolute; top: 3px; right: 3px; font-size: 7px; padding: 1px 3px; border-radius: 2px; font-weight: 700; color: #fff; }
+  .bcell.highlighted { transform: scale(1.04); box-shadow: 0 0 12px 3px rgba(255,255,100,0.5); border-color: #fff !important; z-index: 10; }
+  .bcell.dimmed { opacity: 0.25; }
+  .bcell.completed-cell { border-color: #ff4444 !important; box-shadow: 0 0 8px rgba(255,60,60,0.4); }
+
+  .date-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; align-items: center; }
+  .date-item { display: flex; align-items: center; gap: 4px; }
+  .date-btn { background: #2a2a3e; border: 1px solid #3a3a5a; border-radius: 6px; padding: 4px 7px; color: #aaa; font-size: 10px; cursor: pointer; transition: all 0.15s; font-family: inherit; }
+  .date-btn:hover { background: #3a3a5e; color: #fff; }
+  .date-btn.active { background: #ff4444; color: #fff; font-weight: 700; border-color: #ff4444; }
+  .date-btn.checked { border-color: #44cc88; color: #44cc88; background: #0a1a0a; }
+  .date-checkbox { width: 14px; height: 14px; accent-color: #44cc88; cursor: pointer; }
+  .week-gap { width: 100%; height: 4px; }
+  .resizer {
+    flex: 0 0 18px;
+    background: #1e1e32;
+    border-left: 1px solid #3a3a6a;
+    border-right: 1px solid #3a3a6a;
+    cursor: col-resize;
+    transition: background 0.15s;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    align-self: stretch;
+  }
+  .resizer:hover, .resizer.dragging { background: #2a2a4a; border-color: #ffd700; }
+  .resizer::after {
+    content: '⋮';
+    color: #555;
+    font-size: 20px;
+    pointer-events: none;
+    line-height: 1;
+  }
+  .resizer:hover::after, .resizer.dragging::after { color: #ffd700; }
+  /* 패널 헤더 */
+  .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .panel-title { font-size: 15px; font-weight: 700; color: #ffd700; }
+  .minimize-btn {
+    background: #2a2a3e; border: 1px solid #3a3a5a; border-radius: 6px;
+    color: #aaa; font-size: 12px; padding: 2px 8px; cursor: pointer;
+    transition: all 0.15s; font-family: inherit; line-height: 1.4;
+  }
+  .minimize-btn:hover { background: #3a3a5e; color: #fff; }
+  .calendar-panel.minimized { flex: 0 0 36px !important; overflow: hidden; }
+  .calendar-panel.minimized .cal-grid { display: none; }
+  .calendar-panel.minimized .panel-header { display: none; }
+  .bingo-panel.minimized { flex: 0 0 36px !important; overflow: hidden; }
+  .bingo-panel.minimized .bingo-title-row,
+  .bingo-panel.minimized .panel-header,
+  .bingo-panel.minimized .legend,
+  .bingo-panel.minimized .bingo-grid,
+  .bingo-panel.minimized .date-bar { display: none; }
+  .minimized-label { display: none; writing-mode: vertical-rl; color: #ffd700; font-size: 12px; font-weight: 700; text-align: center; padding: 8px 0; }
+  .minimized .minimized-label { display: block; }
+</style>
+</head>
+<body>
+<h1>🏋️ 헬스장 빙고 플래너</h1>
+<p class="subtitle">목표 빙고: 1행 / 2행 / 5행 / 2열 / 4열 | 완성 목표: 7/15(수) 🎉</p>
+
+<div class="app-layout">
+  <div class="calendar-panel">
+    <div class="panel-header">
+      <div class="panel-title">📅 6/15 ~ 7/16 플래너</div>
+      <button class="minimize-btn" id="cal-minimize-btn" onclick="toggleMinimize('cal')">━</button>
+    </div>
+    <div class="minimized-label">📅 달력<br><button class="minimize-btn" style="writing-mode:initial;margin-top:8px;font-size:14px;" onclick="toggleMinimize('cal')">□</button></div>
+    <div class="cal-grid" id="cal-grid">
+      <div class="cal-day-header"></div>
+      <div class="cal-day-header" style="color:#888">일</div>
+      <div class="cal-day-header">월</div>
+      <div class="cal-day-header">화</div>
+      <div class="cal-day-header">수</div>
+      <div class="cal-day-header">목</div>
+      <div class="cal-day-header">금</div>
+      <div class="cal-day-header" style="color:#888">토</div>
+    </div>
+  </div>
+
+  <div class="resizer" id="resizer"></div>
+
+  <div class="bingo-panel">
+    <div class="panel-header bingo-title-row">
+      <div class="panel-title">빙고판</div>
+      <button class="minimize-btn" id="bingo-minimize-btn" onclick="toggleMinimize('bingo')">━</button>
+    </div>
+    <div class="minimized-label">🏆 빙고판<br><button class="minimize-btn" style="writing-mode:initial;margin-top:8px;font-size:14px;" onclick="toggleMinimize('bingo')">□</button></div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#ff4444"></div>1주차</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ff8844"></div>2주차</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ffcc00"></div>3주차</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#44cc55"></div>4주차</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#4488ff"></div>5주차</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#666699"></div>주차무관</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#8844cc"></div>체지방</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ff4444;border-radius:50%"></div>미션완료</div>
+    </div>
+    <div class="bingo-grid">
+      <!-- 1행 -->
+      <div class="bcell target" id="cell-검은옷1" data-dates="6/15"><div class="btitle">검은 옷을 이겨라</div><div class="bsub">1주차</div><div class="bdates">6/15</div></div>
+      <div class="bcell target" id="cell-유산소50분" data-dates="6/30,7/1,7/2"><div class="btitle">유산소 50분</div><div class="bsub">3주차 (3회)</div><div class="bdates">6/30, 7/1, 7/2</div></div>
+      <div class="bcell target" id="cell-샐러드" data-dates="6/15,6/26,7/2,7/8,7/15"><span class="bbadge" style="background:#4488ff">5주차</span><div class="btitle">샐러드</div><div class="bsub">5회 인증</div><div class="bdates">6/15, 6/26, 7/2, 7/8, 7/15</div></div>
+      <div class="bcell fat-4 target" id="cell-체지방4" data-dates="7/10"><span class="bbadge" style="background:#8844cc">목표</span><div class="btitle">체지방</div><div class="bsub">4% 감소</div><div class="bdates">7/10</div></div>
+      <div class="bcell target" id="cell-1만보" data-dates="6/17,6/23,6/30,7/7,7/13"><span class="bbadge" style="background:#4488ff">5주차</span><div class="btitle">1만보 인증</div><div class="bsub">(5회)</div><div class="bdates">6/17, 6/23, 6/30, 7/7, 7/13</div></div>
+      <!-- 2행 -->
+      <div class="bcell target" id="cell-GX" data-dates="6/18,6/24,7/1,7/7,7/13"><span class="bbadge" style="background:#4488ff">5주차</span><div class="btitle">GX / 단체강습</div><div class="bsub">5회 참석</div><div class="bdates">6/18, 6/24, 7/1, 7/7, 7/13</div></div>
+      <div class="bcell fat-1 target" id="cell-체지방1" data-dates="7/15"><span class="bbadge" style="background:#8844cc">1%</span><div class="btitle">체지방</div><div class="bsub">1% 감소</div><div class="bdates">7/15</div></div>
+      <div class="bcell target" id="cell-미션수행2" data-dates="6/23"><div class="btitle">미션수행</div><div class="bsub">2주차</div><div class="bdates">6/23</div></div>
+      <div class="bcell target" id="cell-버피" data-dates="6/18,6/25,7/3,7/8,7/14"><span class="bbadge" style="background:#4488ff">5주차</span><div class="btitle">버피 50개</div><div class="bsub">(5회)</div><div class="bdates">6/18, 6/25, 7/3, 7/8, 7/14</div></div>
+      <div class="bcell target" id="cell-검은옷4" data-dates="7/6"><div class="btitle">검은 옷을 이겨라</div><div class="bsub">4주차</div><div class="bdates">7/6</div></div>
+      <!-- 3행 -->
+      <div class="bcell" id="cell-푸쉬업" style="border-color:#ff8844;background:#2a1a0a;" data-dates="6/27,7/4,7/11"><span class="bbadge" style="background:#ff8844">예비</span><div class="btitle" style="color:#ffbb88">푸쉬업</div><div class="bsub" style="color:#cc8844">여50/남100 (3회)</div><div class="bdates" style="color:#ffaa44">6/27, 7/4, 7/11</div></div>
+      <div class="bcell target" id="cell-미션수행4" data-dates="7/6"><div class="btitle">미션수행</div><div class="bsub">4주차</div><div class="bdates">7/6</div></div>
+      <div class="bcell" data-dates=""><div class="btitle">체지방</div><div class="bsub">7% 감소</div><div class="bdates" style="color:#555">타깃 아님</div></div>
+      <div class="bcell target" id="cell-유산소40분" data-dates="6/22,6/24,6/25"><div class="btitle">유산소 40분</div><div class="bsub">2주차 (3회)</div><div class="bdates">6/22, 6/24, 6/25</div></div>
+      <div class="bcell" data-dates=""><div class="btitle">금요출석</div><div class="bsub">2회</div><div class="bdates" style="color:#555">타깃 아님</div></div>
+      <!-- 4행 -->
+      <div class="bcell" id="cell-체지방5" style="border-color:#ff8844;background:#2a1a0a;" data-dates="7/9"><span class="bbadge" style="background:#ff8844">예비</span><div class="btitle" style="color:#ffbb88">체지방</div><div class="bsub" style="color:#cc8844">5% 감소</div><div class="bdates" style="color:#ffaa44">7/9</div></div>
+      <div class="bcell target" id="cell-검은옷2" data-dates="6/26"><div class="btitle">검은 옷을 이겨라</div><div class="bsub">2주차</div><div class="bdates">6/26</div></div>
+      <div class="bcell target" id="cell-검은옷3" data-dates="6/29"><div class="btitle">검은 옷을 이겨라</div><div class="bsub">3주차</div><div class="bdates">6/29</div></div>
+      <div class="bcell fat-3 target" id="cell-체지방3" data-dates="7/3"><span class="bbadge" style="background:#8844cc">3%</span><div class="btitle">체지방</div><div class="bsub">3% 감소</div><div class="bdates">7/3</div></div>
+      <div class="bcell" data-dates=""><div class="btitle">스쿼트 100개</div><div class="bsub">(5회)</div><div class="bdates" style="color:#555">타깃 아님</div></div>
+      <!-- 5행 -->
+      <div class="bcell target" id="cell-미션수행1" data-dates="6/16"><div class="btitle">미션수행</div><div class="bsub">1주차</div><div class="bdates">6/16</div></div>
+      <div class="bcell target" id="cell-2만보" data-dates="6/19,6/22,7/9"><div class="btitle">2만보 인증</div><div class="bsub">(3회)</div><div class="bdates">6/19, 6/22, 7/9</div></div>
+      <div class="bcell target" id="cell-검은옷5" data-dates="7/14"><span class="bbadge" style="background:#4488ff">5주차</span><div class="btitle">검은 옷을 이겨라</div><div class="bsub">5주차</div><div class="bdates">7/14</div></div>
+      <div class="bcell target" id="cell-유산소30분" data-dates="6/16,6/17,6/19"><div class="btitle">유산소 30분</div><div class="bsub">1주차 (3회)</div><div class="bdates">6/16, 6/17, 6/19</div></div>
+      <div class="bcell target" id="cell-미션수행3" data-dates="6/29"><div class="btitle">미션수행</div><div class="bsub">3주차</div><div class="bdates">6/29</div></div>
+    </div>
+    <div class="date-bar" id="date-bar"></div>
+  </div>
+</div>
+
+<script>
+// 날짜 목록
+const allDates = [
+  {date:"6/15",label:"6/15월"}, {date:"6/16",label:"6/16화"}, {date:"6/17",label:"6/17수"},
+  {date:"6/18",label:"6/18목"}, {date:"6/19",label:"6/19금"}, null,
+  {date:"6/22",label:"6/22월"}, {date:"6/23",label:"6/23화"}, {date:"6/24",label:"6/24수"},
+  {date:"6/25",label:"6/25목"}, {date:"6/26",label:"6/26금"}, null,
+  {date:"6/29",label:"6/29월"}, {date:"6/30",label:"6/30화"}, {date:"7/1",label:"7/1수"},
+  {date:"7/2",label:"7/2목"}, {date:"7/3",label:"7/3금"}, {date:"7/4",label:"7/4토"}, null,
+  {date:"7/6",label:"7/6월"}, {date:"7/7",label:"7/7화"}, {date:"7/8",label:"7/8수"},
+  {date:"7/9",label:"7/9목"}, {date:"7/10",label:"7/10금"}, {date:"7/11",label:"7/11토"}, null,
+  {date:"7/13",label:"7/13월"}, {date:"7/14",label:"7/14화"}, {date:"7/15",label:"7/15수🎉"},
+  {date:"7/16",label:"7/16목"},
+];
+
+// 빙고칸 완료 판정용 날짜 매핑
+const cellDateMap = {
+  "cell-검은옷1":   ["6/15"],
+  "cell-검은옷2":   ["6/26"],
+  "cell-검은옷3":   ["6/29"],
+  "cell-검은옷4":   ["7/6"],
+  "cell-검은옷5":   ["7/14"],
+  "cell-미션수행1": ["6/16"],
+  "cell-미션수행2": ["6/23"],
+  "cell-미션수행3": ["6/29"],
+  "cell-미션수행4": ["7/6"],
+  "cell-유산소30분":["6/16","6/17","6/19"],
+  "cell-유산소40분":["6/22","6/24","6/25"],
+  "cell-유산소50분":["6/30","7/1","7/2"],
+  "cell-샐러드":    ["6/15","6/26","7/2","7/8","7/15"],
+  "cell-1만보":     ["6/17","6/23","6/30","7/7","7/13"],
+  "cell-GX":        ["6/18","6/24","7/1","7/7","7/13"],
+  "cell-버피":      ["6/18","6/25","7/3","7/8","7/14"],
+  "cell-2만보":     ["6/19","6/22","7/9"],
+  "cell-체지방1":   ["7/15"],
+  "cell-체지방3":   ["7/3"],
+  "cell-체지방4":   ["7/10"],
+  "cell-푸쉬업":    ["6/27","7/4","7/11"],
+  "cell-체지방5":   ["7/9"],
+};
+
+const checkedDates = new Set();
+let activeDate = null;
+
+function renderDateBar() {
+  const bar = document.getElementById('date-bar');
+  bar.innerHTML = '';
+  allDates.forEach(item => {
+    if (!item) { const g = document.createElement('div'); g.className='week-gap'; bar.appendChild(g); return; }
+    const wrapper = document.createElement('div');
+    wrapper.className = 'date-item';
+    const btn = document.createElement('button');
+    btn.className = 'date-btn' + (checkedDates.has(item.date)?' checked':'') + (activeDate===item.date?' active':'');
+    btn.textContent = item.label;
+    btn.dataset.date = item.date;
+    btn.addEventListener('click', () => toggleActive(item.date));
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'date-checkbox';
+    cb.checked = checkedDates.has(item.date);
+    cb.addEventListener('change', () => toggleChecked(item.date, cb.checked));
+    wrapper.appendChild(btn);
+    wrapper.appendChild(cb);
+    bar.appendChild(wrapper);
+  });
+}
+
+function toggleActive(date) {
+  const bcells = document.querySelectorAll('.bcell');
+  if (activeDate === date) {
+    activeDate = null;
+    bcells.forEach(c => { c.classList.remove('highlighted'); c.classList.remove('dimmed'); });
+    renderDateBar(); return;
+  }
+  activeDate = date;
+  bcells.forEach(cell => {
+    const cd = (cell.dataset.dates||'').split(',').map(d=>d.trim());
+    if (cd.includes(date)) { cell.classList.add('highlighted'); cell.classList.remove('dimmed'); }
+    else { cell.classList.remove('highlighted'); cell.classList.add('dimmed'); }
+  });
+  renderDateBar();
+}
+
+function toggleChecked(date, isChecked) {
+  if (isChecked) checkedDates.add(date);
+  else checkedDates.delete(date);
+  const calDay = document.querySelector(`.cal-day[data-date="${date}"]`);
+  if (calDay) { if (isChecked) calDay.classList.add('completed'); else calDay.classList.remove('completed'); }
+  updateCompletedCells();
+  renderDateBar();
+  if (window.saveToFirebase) window.saveToFirebase();
+}
+
+function updateCompletedCells() {
+  for (const [cellId, dates] of Object.entries(cellDateMap)) {
+    const cell = document.getElementById(cellId);
+    if (!cell) continue;
+    const allChecked = dates.every(d => checkedDates.has(d));
+    if (allChecked) cell.classList.add('completed-cell');
+    else cell.classList.remove('completed-cell');
+    // bdates 날짜 색상 업데이트
+    const bdatesEl = cell.querySelector('.bdates');
+    if (bdatesEl && !bdatesEl.style.color) {
+      bdatesEl.innerHTML = dates.map(d =>
+        `<span style="color:${checkedDates.has(d)?'#ff4444':'#ffcc44'}">${d}</span>`
+      ).join(' ');
+    }
+  }
+}
+
+// 미션 데이터 (달력 기준)
+window.allMissions = [];
+const missionData = [
+  {id:"m1",  text:"검은옷 1주차",   week:1, date:"6/15"},
+  {id:"m2",  text:"샐러드",         week:1, date:"6/15"},
+  {id:"m3",  text:"유산소 30분",    week:1, date:"6/16"},
+  {id:"m4",  text:"미션수행 1주차", week:1, date:"6/16"},
+  {id:"m5",  text:"유산소 30분",    week:1, date:"6/17"},
+  {id:"m6",  text:"1만보",          week:1, date:"6/17"},
+  {id:"m7",  text:"GX",             week:1, date:"6/18"},
+  {id:"m8",  text:"버피 50개",      week:1, date:"6/18"},
+  {id:"m9",  text:"2만보",          week:0, date:"6/19"},
+  {id:"m10", text:"유산소 30분",    week:1, date:"6/19"},
+  {id:"m11", text:"2만보",          week:0, date:"6/22"},
+  {id:"m12", text:"유산소 40분",    week:2, date:"6/22"},
+  {id:"m13", text:"미션수행 2주차", week:2, date:"6/23"},
+  {id:"m14", text:"1만보",          week:2, date:"6/23"},
+  {id:"m15", text:"유산소 40분",    week:2, date:"6/24"},
+  {id:"m16", text:"GX",             week:2, date:"6/24"},
+  {id:"m17", text:"유산소 40분",    week:2, date:"6/25"},
+  {id:"m18", text:"버피 50개",      week:2, date:"6/25"},
+  {id:"m19", text:"샐러드",         week:2, date:"6/26"},
+  {id:"m20", text:"검은옷 2주차",   week:2, date:"6/26"},
+  {id:"m21", text:"미션수행 3주차", week:3, date:"6/29"},
+  {id:"m22", text:"검은옷 3주차",   week:3, date:"6/29"},
+  {id:"m23", text:"유산소 50분",    week:3, date:"6/30"},
+  {id:"m24", text:"1만보",          week:3, date:"6/30"},
+  {id:"m25", text:"유산소 50분",    week:3, date:"7/1"},
+  {id:"m26", text:"GX",             week:3, date:"7/1"},
+  {id:"m27", text:"유산소 50분",    week:3, date:"7/2"},
+  {id:"m28", text:"샐러드",         week:3, date:"7/2"},
+  {id:"m29", text:"체지방 3%",      week:"purple", date:"7/3"},
+  {id:"m30", text:"버피 50개",      week:3, date:"7/3"},
+  {id:"m31", text:"미션수행 4주차", week:4, date:"7/6"},
+  {id:"m32", text:"검은옷 4주차",   week:4, date:"7/6"},
+  {id:"m33", text:"1만보",          week:4, date:"7/7"},
+  {id:"m34", text:"GX",             week:4, date:"7/7"},
+  {id:"m35", text:"버피 50개",      week:4, date:"7/8"},
+  {id:"m36", text:"샐러드",         week:4, date:"7/8"},
+  {id:"m37", text:"2만보",          week:0, date:"7/9"},
+  {id:"m38", text:"체지방 4%",      week:"purple", date:"7/10"},
+  {id:"m39", text:"1만보",          week:5, date:"7/13"},
+  {id:"m40", text:"GX",             week:5, date:"7/13"},
+  {id:"m41", text:"버피 50개",      week:5, date:"7/14"},
+  {id:"m42", text:"검은옷 5주차",   week:5, date:"7/14"},
+  {id:"m43", text:"샐러드",         week:5, date:"7/15"},
+  {id:"m44", text:"체지방 1%",      week:"purple", date:"7/15"},
+  {id:"m50", text:"푸쉬업",           week:0, date:"6/27"},
+  {id:"m51", text:"푸쉬업",           week:0, date:"7/4"},
+  {id:"m52", text:"푸쉬업",           week:0, date:"7/11"},
+  {id:"m53", text:"체지방 5%",        week:"purple", date:"7/9"},
+];
+
+window.allMissions = missionData;
+
+function weekClass(w) {
+  if (w==="purple") return "week-purple";
+  if (w===0) return "week-any";
+  return `week-${w}`;
+}
+
+window.state = {};
+const state = window.state;
+missionData.forEach(m => {
+  if (!state[m.date]) state[m.date] = [];
+  state[m.date].push({...m});
+});
+
+const weeks = [
+  { label:"1주차", color:"#ff4444", days:[
+    {date:null,dow:"일"},{date:"6/15",dow:"월"},{date:"6/16",dow:"화"},{date:"6/17",dow:"수"},{date:"6/18",dow:"목"},{date:"6/19",dow:"금"},{date:"6/20",dow:"토"}
+  ]},
+  { label:"2주차", color:"#ff8844", days:[
+    {date:null,dow:"일"},{date:"6/22",dow:"월"},{date:"6/23",dow:"화"},{date:"6/24",dow:"수"},{date:"6/25",dow:"목"},{date:"6/26",dow:"금"},{date:"6/27",dow:"토",active:true}
+  ]},
+  { label:"3주차", color:"#ffcc00", days:[
+    {date:null,dow:"일"},{date:"6/29",dow:"월"},{date:"6/30",dow:"화"},{date:"7/1",dow:"수"},{date:"7/2",dow:"목"},{date:"7/3",dow:"금"},{date:"7/4",dow:"토",active:true}
+  ]},
+  { label:"4주차", color:"#44cc55", days:[
+    {date:null,dow:"일"},{date:"7/6",dow:"월"},{date:"7/7",dow:"화"},{date:"7/8",dow:"수"},{date:"7/9",dow:"목"},{date:"7/10",dow:"금"},{date:"7/11",dow:"토",active:true}
+  ]},
+  { label:"5주차", color:"#4488ff", days:[
+    {date:null,dow:"일"},{date:"7/13",dow:"월"},{date:"7/14",dow:"화"},{date:"7/15",dow:"수"},{date:"7/16",dow:"목"},{date:null,dow:"금"},{date:null,dow:"토"}
+  ]},
+];
+
+function renderCal() {
+  const grid = document.getElementById('cal-grid');
+  while (grid.children.length > 8) grid.removeChild(grid.lastChild);
+  weeks.forEach(week => {
+    const label = document.createElement('div');
+    label.className = 'cal-week-label';
+    label.style.cssText = `background:${week.color}22;color:${week.color};border:1px solid ${week.color}44;font-size:9px;font-weight:700;`;
+    label.textContent = week.label;
+    grid.appendChild(label);
+    week.days.forEach(dayInfo => {
+      const d = document.createElement('div');
+      const isWeekend = (dayInfo.dow==='일'||dayInfo.dow==='토');
+      const isActive = dayInfo.date !== null && (dayInfo.dow !== '토' || dayInfo.active);
+      const isChecked = dayInfo.date && checkedDates.has(dayInfo.date);
+      d.className = 'cal-day'+(isWeekend?' weekend':'')+(!isActive?' inactive':'')+(isActive?' active-day':'')+(isChecked?' completed':'');
+      if (dayInfo.date) d.dataset.date = dayInfo.date;
+      const hasMission = dayInfo.date && state[dayInfo.date]?.length > 0;
+      d.innerHTML = `<div class="day-num ${hasMission?'has-m':''}">${dayInfo.date||''}</div><div class="mission-slot" data-date="${dayInfo.date||''}"></div>`;
+      if (dayInfo.date) {
+        const slot = d.querySelector('.mission-slot');
+        slot.addEventListener('dragover', e => { e.preventDefault(); d.classList.add('dragover'); });
+        slot.addEventListener('dragleave', () => d.classList.remove('dragover'));
+        slot.addEventListener('drop', e => { e.preventDefault(); d.classList.remove('dragover'); moveMission(e.dataTransfer.getData('text/plain'), dayInfo.date); });
+      }
+      grid.appendChild(d);
+      if (dayInfo.date) renderDay(dayInfo.date);
+    });
+  });
+}
+
+function renderDay(dateKey) {
+  const slot = document.querySelector(`.mission-slot[data-date="${dateKey}"]`);
+  if (!slot) return;
+  slot.innerHTML = '';
+  (state[dateKey]||[]).forEach(m => {
+    const btn = document.createElement('div');
+    btn.className = `mission-btn ${weekClass(m.week)}`;
+    btn.textContent = m.text;
+    btn.draggable = true;
+    btn.dataset.id = m.id;
+    btn.addEventListener('dragstart', e => { e.dataTransfer.setData('text/plain', m.id); btn.classList.add('dragging'); });
+    btn.addEventListener('dragend', () => btn.classList.remove('dragging'));
+    slot.appendChild(btn);
+  });
+}
+
+// 미션ID → 빙고칸 매핑 (달력 이동 시 빙고판 날짜 업데이트용)
+const missionCellMap = {
+  "m1":"cell-검은옷1","m2":"cell-샐러드","m3":"cell-유산소30분","m4":"cell-미션수행1",
+  "m5":"cell-유산소30분","m6":"cell-1만보","m7":"cell-GX","m8":"cell-버피",
+  "m9":"cell-2만보","m10":"cell-유산소30분",
+  "m11":"cell-2만보","m12":"cell-유산소40분","m13":"cell-미션수행2","m14":"cell-1만보",
+  "m15":"cell-유산소40분","m16":"cell-GX","m17":"cell-유산소40분","m18":"cell-버피",
+  "m19":"cell-샐러드","m20":"cell-검은옷2",
+  "m21":"cell-미션수행3","m22":"cell-검은옷3","m23":"cell-유산소50분","m24":"cell-1만보",
+  "m25":"cell-유산소50분","m26":"cell-GX","m27":"cell-유산소50분","m28":"cell-샐러드",
+  "m29":"cell-체지방3","m30":"cell-버피",
+  "m31":"cell-미션수행4","m32":"cell-검은옷4","m33":"cell-1만보","m34":"cell-GX",
+  "m35":"cell-버피","m36":"cell-샐러드","m37":"cell-2만보","m38":"cell-체지방4",
+  "m39":"cell-1만보","m40":"cell-GX","m41":"cell-버피","m42":"cell-검은옷5",
+  "m43":"cell-샐러드","m44":"cell-체지방1",
+  "m50":"cell-푸쉬업","m51":"cell-푸쉬업","m52":"cell-푸쉬업","m53":"cell-체지방5",
+};
+
+function updateBingoDates() {
+  // cellDateMap을 state 기준으로 재계산
+  const cellMissions = {};
+  for (const [mId, cellId] of Object.entries(missionCellMap)) {
+    if (!cellMissions[cellId]) cellMissions[cellId] = [];
+    cellMissions[cellId].push(mId);
+  }
+  for (const [cellId, mIds] of Object.entries(cellMissions)) {
+    const cell = document.getElementById(cellId);
+    if (!cell) continue;
+    const dates = [];
+    for (const [date, missions] of Object.entries(state)) {
+      missions.forEach(m => { if (mIds.includes(m.id)) dates.push(date); });
+    }
+    dates.sort((a,b) => { const f=d=>{const[mo,dd]=d.split('/');return mo*100+parseInt(dd);}; return f(a)-f(b); });
+    cell.dataset.dates = dates.join(',');
+    cellDateMap[cellId] = dates;
+    const bdatesEl = cell.querySelector('.bdates');
+    if (bdatesEl && !bdatesEl.style.color) {
+      bdatesEl.innerHTML = dates.map(d =>
+        `<span style="color:${checkedDates.has(d)?'#ff4444':'#ffcc44'}">${d}</span>`
+      ).join(' ');
+    }
+  }
+}
+
+function moveMission(mId, toDate) {
+  for (const date in state) {
+    const idx = state[date].findIndex(m => m.id===mId);
+    if (idx!==-1) {
+      const [mission] = state[date].splice(idx,1);
+      if (!state[toDate]) state[toDate]=[];
+      state[toDate].push(mission);
+      renderDay(date);
+      renderDay(toDate);
+      updateBingoDates();
+      updateCompletedCells();
+      if (window.saveToFirebase) window.saveToFirebase();
+      return;
+    }
+  }
+}
+
+
+
+
+
+// 리사이저
+const resizer = document.getElementById('resizer');
+const calPanel = document.querySelector('.calendar-panel');
+const bingoPanel = document.querySelector('.bingo-panel');
+const appLayout = document.querySelector('.app-layout');
+
+let isResizing = false;
+let startX = 0;
+let startCalWidth = 0;
+let calSavedWidth = 560;
+
+resizer.addEventListener('mousedown', (e) => {
+  isResizing = true;
+  startX = e.clientX;
+  if (!calPanel.classList.contains('minimized')) {
+    calSavedWidth = calPanel.getBoundingClientRect().width;
+  }
+  startCalWidth = calPanel.classList.contains('minimized') ? 36 : calSavedWidth;
+  resizer.classList.add('dragging');
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isResizing) return;
+  const dx = e.clientX - startX;
+  const newCalWidth = startCalWidth + dx;
+
+  // 달력 최소화 해제
+  if (calPanel.classList.contains('minimized') && dx > 20) {
+    calPanel.classList.remove('minimized');
+    calPanel.style.flex = `0 0 ${Math.max(300, calSavedWidth)}px`;
+    document.getElementById('cal-minimize-btn').textContent = '━';
+    return;
+  }
+  // 빙고판 최소화 해제
+  if (bingoPanel.classList.contains('minimized') && dx < -20) {
+    bingoPanel.classList.remove('minimized');
+    document.getElementById('bingo-minimize-btn').textContent = '━';
+    return;
+  }
+  // 달력 최소화
+  if (!calPanel.classList.contains('minimized') && newCalWidth < 150) {
+    calPanel.classList.add('minimized');
+    document.getElementById('cal-minimize-btn').textContent = '□';
+    return;
+  }
+  // 빙고판 최소화
+  if (!bingoPanel.classList.contains('minimized') && newCalWidth > appLayout.getBoundingClientRect().width - 150) {
+    bingoPanel.classList.add('minimized');
+    document.getElementById('bingo-minimize-btn').textContent = '□';
+    return;
+  }
+  if (!calPanel.classList.contains('minimized') && !bingoPanel.classList.contains('minimized')) {
+    const clamped = Math.max(300, Math.min(newCalWidth, appLayout.getBoundingClientRect().width - 300));
+    calPanel.style.flex = `0 0 ${clamped}px`;
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (!isResizing) return;
+  isResizing = false;
+  resizer.classList.remove('dragging');
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+});
+
+function toggleMinimize(panel) {
+  if (panel === 'cal') {
+    const el = document.querySelector('.calendar-panel');
+    const btn = document.getElementById('cal-minimize-btn');
+    el.classList.toggle('minimized');
+    btn.textContent = el.classList.contains('minimized') ? '□' : '━';
+  } else {
+    const el = document.querySelector('.bingo-panel');
+    const btn = document.getElementById('bingo-minimize-btn');
+    el.classList.toggle('minimized');
+    btn.textContent = el.classList.contains('minimized') ? '□' : '━';
+  }
+}
+
+renderCal();
+updateBingoDates();
+updateCompletedCells();
+renderDateBar();
+</script>
+
+<!-- Firebase -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  const firebaseConfig = {
+    apiKey: "AIzaSyCUh-cL4ak_l2w1efnxluKIk746SZMYk28",
+    authDomain: "bingo-planner.firebaseapp.com",
+    projectId: "bingo-planner",
+    storageBucket: "bingo-planner.firebasestorage.app",
+    messagingSenderId: "27817537800",
+    appId: "1:27817537800:web:46624e5b9729347237fcbd"
+  };
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const docRef = doc(db, "bingo", "schedule");
+
+  window.saveToFirebase = async function() {
+    const saveState = {};
+    for (const [date, missions] of Object.entries(window.state)) {
+      saveState[date] = missions.map(m => m.id);
+    }
+    await setDoc(docRef, { state: saveState, checked: Array.from(checkedDates) });
+  };
+
+  onSnapshot(docRef, (snapshot) => {
+    if (!snapshot.exists()) return;
+    const data = snapshot.data();
+    if (!data) return;
+    if (data.state) {
+      for (const date in window.state) window.state[date] = [];
+      for (const [date, ids] of Object.entries(data.state)) {
+        if (!window.state[date]) window.state[date] = [];
+        ids.forEach(id => {
+          const mission = window.allMissions.find(m => m.id === id);
+          if (mission) window.state[date].push({...mission});
+        });
+      }
+      // 새로 추가된 미션이 Firebase에 없으면 기본값으로 추가
+      const newMissions = ['m50','m51','m52','m53'];
+      newMissions.forEach(mId => {
+        const mission = window.allMissions.find(m => m.id === mId);
+        if (!mission) return;
+        const alreadyExists = Object.values(window.state).some(ms => ms.some(m => m.id === mId));
+        if (!alreadyExists) {
+          if (!window.state[mission.date]) window.state[mission.date] = [];
+          window.state[mission.date].push({...mission});
+        }
+      });
+    }
+    if (data.checked) {
+      checkedDates.clear();
+      data.checked.forEach(d => checkedDates.add(d));
+    }
+    
+
+
+
+// 리사이저
+
+
+let isResizing = false;
+let startX = 0;
+let startCalWidth = 0;
+
+
+
+renderCal();
+    updateBingoDates();
+    updateCompletedCells();
+    renderDateBar();
+  });
+</script>
+</body>
+</html>
